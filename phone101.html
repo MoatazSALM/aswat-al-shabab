@@ -249,9 +249,25 @@ footer b{color:var(--muted)}
 }
 @media(min-width:861px){.bottomnav{display:none}}
 
-/* ---------- comments (utterances) ---------- */
-.utterances{max-width:100%;direction:rtl;margin-top:.2rem}
-.utterances iframe{width:100%}
+/* ---------- comments (local) ---------- */
+.c-count{font-size:.85rem;color:var(--muted);margin-bottom:.8rem}
+.c-count b{color:var(--terra)}
+#commentList{display:flex;flex-direction:column;gap:.7rem;margin-bottom:1rem}
+.cempty{font-size:.9rem;color:var(--faint);text-align:center;padding:1rem;border:1.5px dashed var(--line);border-radius:12px}
+.comment{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:.8rem 1rem}
+.comment .cc-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.35rem}
+.comment .cc-head b{font-family:var(--font-head);font-size:.85rem;color:var(--ink)}
+.comment .cc-head span{font-size:.7rem;color:var(--faint)}
+.comment p{font-size:.9rem;color:var(--ink);line-height:1.8;white-space:pre-wrap;word-break:break-word}
+.cform{display:flex;flex-direction:column;gap:.7rem}
+.cform input,.cform textarea{font-family:var(--font-body);font-size:.92rem;color:var(--ink);
+  background:var(--paper);border:1.5px solid var(--line);border-radius:10px;padding:.7rem .9rem;resize:vertical}
+.cform input:focus,.cform textarea:focus{outline:none;border-color:var(--terra)}
+.cbtn{align-self:flex-start;font-family:var(--font-head);font-weight:800;font-size:.9rem;color:#FFF6E8;
+  background:linear-gradient(135deg,var(--terra),var(--saffron));border:none;border-radius:100px;
+  padding:.6rem 1.6rem;cursor:pointer;box-shadow:var(--shadow);transition:transform .2s ease}
+.cbtn:hover{transform:translateY(-2px)}
+.cnote{font-size:.75rem;color:var(--faint);margin-top:.8rem;line-height:1.7}
 
 /* ===================== INTRO (swipe up) ===================== */
 .intro-fog{position:fixed;inset:0;z-index:300;display:grid;grid-template-columns:minmax(0,1fr);justify-content:center;place-items:center;align-content:center;gap:1.5rem;padding:0 4vw;
@@ -697,13 +713,15 @@ body.intro-exit .intro-logo{animation:none;transform:translateY(calc(var(--pull,
       <p class="sec-sub">شاركوا ملاحظاتكم وأفكاركم حول نتائج التقرير — كل تعليق يصلنا مباشرة عبر هذه الصفحة.</p></div>
     </div>
     <div class="card reveal">
-<script src="https://utteranc.es/client.js"
-        repo="MoatazSALM/aswat-al-shabab"
-        issue-term="pathname"
-        theme="github-light"
-        crossorigin="anonymous"
-        async>
-</script>
+      <h4>أكتبوا تعليقكم هنا</h4>
+      <div class="c-count"><b id="cCount">0</b> تعليق</div>
+      <div id="commentList"></div>
+      <div class="cform">
+        <input type="text" id="cName" placeholder="اسمك (اختياري)" maxlength="40">
+        <textarea id="cBody" rows="3" placeholder="اكتب تعليقك هنا…"></textarea>
+        <button id="cSend" class="cbtn">نشر التعليق</button>
+      </div>
+      <p class="cnote">التعليق يُحفظ في صفحة المتصفح على جهازك مباشرة — شارك رابط الصفحة لقراءة تعليقات الآخرين.</p>
     </div>
   </section>
 
@@ -857,6 +875,54 @@ document.querySelectorAll('.donut').forEach(d=>{
   function render(){ q.textContent=D.quotes[i].q; a.textContent='— '+D.quotes[i].a; }
   render();
   setInterval(()=>{ i=(i+1)%D.quotes.length; render(); },3000);
+})();
+</script>
+
+<script>
+/* ===================== COMMENTS (localStorage) ===================== */
+(function(){
+  const KEY='aswatComments';
+  const list=document.getElementById('commentList');
+  const nameEl=document.getElementById('cName');
+  const bodyEl=document.getElementById('cBody');
+  const sendEl=document.getElementById('cSend');
+  const countEl=document.getElementById('cCount');
+  if(!list||!bodyEl||!sendEl) return;
+
+  let comments=[];
+  try{ comments=JSON.parse(localStorage.getItem(KEY))||[]; }catch(e){ comments=[]; }
+  if(!Array.isArray(comments)) comments=[];
+
+  function esc(s){
+    return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function dateAr(ts){
+    try{
+      return new Date(ts).toLocaleString('ar-LY',{dateStyle:'short',timeStyle:'short'});
+    }catch(e){ return new Date(ts).toLocaleString(); }
+  }
+  function render(){
+    countEl.textContent=comments.length;
+    if(!comments.length){
+      list.innerHTML='<div class="cempty">لا توجد تعليقات بعد — كن أول من يشارك.</div>';
+      return;
+    }
+    list.innerHTML=comments.map(c=>
+      '<div class="comment"><div class="cc-head"><b>'+esc(c.n||'زائر')+'</b><span>'+esc(dateAr(c.t))+'</span></div><p>'+esc(c.b)+'</p></div>'
+    ).join('');
+  }
+  sendEl.addEventListener('click',function(){
+    const b=bodyEl.value.trim();
+    if(!b) return;
+    comments.unshift({n:(nameEl.value.trim().slice(0,40))||'زائر', b:b, t:Date.now()});
+    try{ localStorage.setItem(KEY,JSON.stringify(comments)); }catch(e){}
+    bodyEl.value='';
+    render();
+  });
+  bodyEl.addEventListener('keydown',function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); sendEl.click(); }
+  });
+  render();
 })();
 </script>
 
