@@ -249,16 +249,7 @@ footer b{color:var(--muted)}
 }
 @media(min-width:861px){.bottomnav{display:none}}
 
-/* ---------- comments (local) ---------- */
-.c-count{font-size:.85rem;color:var(--muted);margin-bottom:.8rem}
-.c-count b{color:var(--terra)}
-#commentList{display:flex;flex-direction:column;gap:.7rem;margin-bottom:1rem}
-.cempty{font-size:.9rem;color:var(--faint);text-align:center;padding:1rem;border:1.5px dashed var(--line);border-radius:12px}
-.comment{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:.8rem 1rem}
-.comment .cc-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.35rem}
-.comment .cc-head b{font-family:var(--font-head);font-size:.85rem;color:var(--ink)}
-.comment .cc-head span{font-size:.7rem;color:var(--faint)}
-.comment p{font-size:.9rem;color:var(--ink);line-height:1.8;white-space:pre-wrap;word-break:break-word}
+/* ---------- comments (→ Google Sheets) ---------- */
 .cform{display:flex;flex-direction:column;gap:.7rem}
 .cform input,.cform textarea{font-family:var(--font-body);font-size:.92rem;color:var(--ink);
   background:var(--paper);border:1.5px solid var(--line);border-radius:10px;padding:.7rem .9rem;resize:vertical}
@@ -267,6 +258,10 @@ footer b{color:var(--muted)}
   background:linear-gradient(135deg,var(--terra),var(--saffron));border:none;border-radius:100px;
   padding:.6rem 1.6rem;cursor:pointer;box-shadow:var(--shadow);transition:transform .2s ease}
 .cbtn:hover{transform:translateY(-2px)}
+.cbtn:disabled{opacity:.6;cursor:default}
+.cmsg{margin-top:.9rem;padding:.8rem 1rem;border-radius:10px;font-size:.88rem;line-height:1.7}
+.cmsg.ok{background:color-mix(in srgb,var(--card) 88%,var(--teal) 12%);border:1.5px solid var(--teal);color:var(--teal)}
+.cmsg.err{background:color-mix(in srgb,var(--card) 88%,var(--rose) 12%);border:1.5px solid var(--rose);color:var(--rose)}
 .cnote{font-size:.75rem;color:var(--faint);margin-top:.8rem;line-height:1.7}
 
 /* ===================== INTRO (swipe up) ===================== */
@@ -714,14 +709,13 @@ body.intro-exit .intro-logo{animation:none;transform:translateY(calc(var(--pull,
     </div>
     <div class="card reveal">
       <h4>أكتبوا تعليقكم هنا</h4>
-      <div class="c-count"><b id="cCount">0</b> تعليق</div>
-      <div id="commentList"></div>
       <div class="cform">
         <input type="text" id="cName" placeholder="اسمك (اختياري)" maxlength="40">
         <textarea id="cBody" rows="3" placeholder="اكتب تعليقك هنا…"></textarea>
         <button id="cSend" class="cbtn">نشر التعليق</button>
       </div>
-      <p class="cnote">التعليق يُحفظ في صفحة المتصفح على جهازك مباشرة — شارك رابط الصفحة لقراءة تعليقات الآخرين.</p>
+      <div id="cMsg" class="cmsg" hidden></div>
+      <p class="cnote">تعليقك يوصلنا مباشرة في جدول خاص لدى معدّ التقرير. لن يظهر تعليقك علنياً.</p>
     </div>
   </section>
 
@@ -879,50 +873,41 @@ document.querySelectorAll('.donut').forEach(d=>{
 </script>
 
 <script>
-/* ===================== COMMENTS (localStorage) ===================== */
+/* ===================== COMMENTS → GOOGLE SHEETS ===================== */
 (function(){
-  const KEY='aswatComments';
-  const list=document.getElementById('commentList');
+  const APP_URL = 'https://script.google.com/macros/s/?????/exec'; /* ← ضع رابط Web App من Google Apps Script هنا */
   const nameEl=document.getElementById('cName');
   const bodyEl=document.getElementById('cBody');
   const sendEl=document.getElementById('cSend');
-  const countEl=document.getElementById('cCount');
-  if(!list||!bodyEl||!sendEl) return;
+  const msgEl=document.getElementById('cMsg');
+  if(!bodyEl||!sendEl||!msgEl) return;
 
-  let comments=[];
-  try{ comments=JSON.parse(localStorage.getItem(KEY))||[]; }catch(e){ comments=[]; }
-  if(!Array.isArray(comments)) comments=[];
-
-  function esc(s){
-    return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  function setMsg(text,ok){
+    msgEl.textContent=text;
+    msgEl.hidden=false;
+    msgEl.className='cmsg '+(ok?'ok':'err');
   }
-  function dateAr(ts){
-    try{
-      return new Date(ts).toLocaleString('ar-LY',{dateStyle:'short',timeStyle:'short'});
-    }catch(e){ return new Date(ts).toLocaleString(); }
-  }
-  function render(){
-    countEl.textContent=comments.length;
-    if(!comments.length){
-      list.innerHTML='<div class="cempty">لا توجد تعليقات بعد — كن أول من يشارك.</div>';
-      return;
-    }
-    list.innerHTML=comments.map(c=>
-      '<div class="comment"><div class="cc-head"><b>'+esc(c.n||'زائر')+'</b><span>'+esc(dateAr(c.t))+'</span></div><p>'+esc(c.b)+'</p></div>'
-    ).join('');
-  }
-  sendEl.addEventListener('click',function(){
+  function send(){
     const b=bodyEl.value.trim();
-    if(!b) return;
-    comments.unshift({n:(nameEl.value.trim().slice(0,40))||'زائر', b:b, t:Date.now()});
-    try{ localStorage.setItem(KEY,JSON.stringify(comments)); }catch(e){}
-    bodyEl.value='';
-    render();
-  });
+    if(!b){ setMsg('اكتب تعليقك أولاً قبل النشر.',''); return; }
+    sendEl.disabled=true;
+    const payload={ name:(nameEl.value.trim().slice(0,40))||'زائر', message:b, page:location.pathname };
+    const p=APP_URL.indexOf('?????')>-1
+      ? Promise.reject('NO_URL')
+      : fetch(APP_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+    p.then(function(){
+      bodyEl.value='';
+      setMsg('تم إرسال تعليقك بنجاح ✅ شكراً لك، سيطلع عليه فريق التقرير.',true);
+    }).catch(function(){
+      setMsg('تعذر الإرسال حالياً — تأكد من ربط صفحة Google Sheets في إعدادات الصفحة، أو حاول لاحقاً.',false);
+    }).finally(function(){
+      sendEl.disabled=false;
+    });
+  }
+  sendEl.addEventListener('click',send);
   bodyEl.addEventListener('keydown',function(e){
-    if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); sendEl.click(); }
+    if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); send(); }
   });
-  render();
 })();
 </script>
 
