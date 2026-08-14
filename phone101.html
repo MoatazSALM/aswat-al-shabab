@@ -254,14 +254,27 @@ footer b{color:var(--muted)}
 .cform input,.cform textarea{font-family:var(--font-body);font-size:.92rem;color:var(--ink);
   background:var(--paper);border:1.5px solid var(--line);border-radius:10px;padding:.7rem .9rem;resize:vertical}
 .cform input:focus,.cform textarea:focus{outline:none;border-color:var(--terra)}
-.cbtn{align-self:flex-start;font-family:var(--font-head);font-weight:800;font-size:.9rem;color:#FFF6E8;
+.cbtn{align-self:flex-start;display:inline-flex;align-items:center;gap:.55rem;font-family:var(--font-head);font-weight:800;font-size:.9rem;color:#FFF6E8;
   background:linear-gradient(135deg,var(--terra),var(--saffron));border:none;border-radius:100px;
   padding:.6rem 1.6rem;cursor:pointer;box-shadow:var(--shadow);transition:transform .2s ease}
 .cbtn:hover{transform:translateY(-2px)}
 .cbtn:disabled{opacity:.6;cursor:default}
-.cmsg{margin-top:.9rem;padding:.8rem 1rem;border-radius:10px;font-size:.88rem;line-height:1.7}
+.cbtn .cbtn-icon{width:0;height:0;opacity:0;transition:all .25s ease}
+.cbtn.sending{animation:bob 1.2s ease-in-out infinite;pointer-events:none}
+.cbtn.sending .cbtn-icon{width:16px;height:16px;opacity:1;flex:0 0 auto;
+  border:2.5px solid rgba(255,246,232,.35);border-top-color:#FFF6E8;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.cform.sending input,.cform.sending textarea{opacity:.55;pointer-events:none}
+.card.sending{animation:sendPulse 1.3s ease-out infinite}
+@keyframes sendPulse{
+  0%{box-shadow:0 0 0 0 rgba(219,158,43,.5)}
+  100%{box-shadow:0 0 0 18px rgba(219,158,43,0)}
+}
+.cmsg{margin-top:.9rem;padding:.8rem 1rem;border-radius:10px;font-size:.88rem;line-height:1.7;animation:popIn .35s ease}
+@keyframes popIn{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
 .cmsg.ok{background:color-mix(in srgb,var(--card) 88%,var(--teal) 12%);border:1.5px solid var(--teal);color:var(--teal)}
-.cmsg.err{background:color-mix(in srgb,var(--card) 88%,var(--rose) 12%);border:1.5px solid var(--rose);color:var(--rose)}
+.cmsg.err{background:color-mix(in srgb,var(--card) 88%,var(--saffron) 12%);border:1.5px solid var(--saffron);color:#A87912}
 .cnote{font-size:.75rem;color:var(--faint);margin-top:.8rem;line-height:1.7}
 
 /* ===================== INTRO (swipe up) ===================== */
@@ -700,7 +713,24 @@ body.intro-exit .intro-logo{animation:none;transform:translateY(calc(var(--pull,
     </div>
   </section>
 
-
+  <!-- ================= 15 التعليقات (Google Sheets) ================= -->
+  <section id="comments">
+    <div class="sec-head reveal">
+      <div class="sec-num">15</div>
+      <div><h2 class="sec-title">رأيكم <em>يهمنا</em></h2>
+      <p class="sec-sub">شاركونا رأيكم في هذا التقرير أو اقتراحاتكم لأي خطوة قادمة — ستصل التعليقات مباشرة إلى فريق إعداد التقرير.</p></div>
+    </div>
+    <div class="card reveal">
+      <form class="cform" id="commentForm" autocomplete="off">
+        <label for="name" style="font-family:var(--font-head);font-weight:800;font-size:.92rem">الاسم (اختياري)</label>
+        <input type="text" id="name" name="name" maxlength="40" placeholder="اكتب اسمك هنا…">
+        <label for="comment" style="font-family:var(--font-head);font-weight:800;font-size:.92rem">التعليق <span style="color:var(--terra)">*</span></label>
+        <textarea id="comment" name="comment" rows="4" maxlength="1000" placeholder="رأيك أو اقتراحك يهمنا…" required></textarea>
+        <button type="submit" id="cSend" class="cbtn"><span class="cbtn-icon" aria-hidden="true"></span><span class="cbtn-txt">نشر التعليق</span></button>
+        <div id="cMsg" class="cmsg" hidden></div>
+      </form>
+    </div>
+  </section>
 
 </main>
 
@@ -777,7 +807,7 @@ const t=tickWords.concat(tickWords);
 document.getElementById('ticker').innerHTML=t.map(w=>`<span>${w}</span><i>◆</i>`).join('');
 
 /* nav links */
-const sections=[['exec','ملخص'],['method','منهجية'],['demo','ديموغرافيا'],['needs','احتياجات'],['work','توظيف'],['barrier','عائق'],['entre','ريادة'],['civic','مشاركة'],['facilities','مرافق'],['training','تدريب'],['activities','أنشطة'],['problems','مشاكل'],['projects','مشاريع']];
+const sections=[['exec','ملخص'],['method','منهجية'],['demo','ديموغرافيا'],['needs','احتياجات'],['work','توظيف'],['barrier','عائق'],['entre','ريادة'],['civic','مشاركة'],['facilities','مرافق'],['training','تدريب'],['activities','أنشطة'],['problems','مشاكل'],['projects','مشاريع'],['comments','رأيكم']];
 document.getElementById('navLinks').innerHTML=sections.map(s=>`<a href="#${s[0]}">${s[1]}</a>`).join('');
 
 /* phone bottom nav */
@@ -857,39 +887,62 @@ document.querySelectorAll('.donut').forEach(d=>{
 
 <script>
 /* ===================== COMMENTS → GOOGLE SHEETS ===================== */
+/* إعداد Google Sheets (مرة واحدة فقط):
+   1) افتح sheets.google.com وأنشئ جدولاً جديداً باسم مثلاً "تعليقات".
+   2) من القائمة: إضافات/امتدادات → Apps Script.
+   3) الصق الكود التالي في محرر السكربت ثم احفظه:
+   ------------------------------------------------------------------
+   function doPost(e){
+     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+     const d = JSON.parse(e.postData.contents);
+     sheet.appendRow([new Date(), d.name||'زائر', d.comment||'', d.page||'']);
+     return ContentService.createTextOutput(JSON.stringify({result:'ok'}))
+                          .setMimeType(ContentService.MimeType.JSON);
+   }
+   function doGet(){ return ContentService.createTextOutput('OK'); }
+   ------------------------------------------------------------------
+   4) انشر → نشر كتطبيق ويب (Deploy as Web App):
+      - نفّذ باسم: أنا (Me)
+      - من يمكنه الوصول: أي شخص لديه رابط (Anyone)
+      - انسخ رابط /exec وضعته في المتغير scriptURL بالأسفل.
+   5) عند أول إرسال، افتح الرابط في المتصفح واقبل الأذونات.
+   ملاحظة: يستقبل السكربت الحقول name و comment (وليس message).
+*/
 (function(){
-  const APP_URL = 'https://script.google.com/macros/s/?????/exec'; /* ← ضع رابط Web App من Google Apps Script هنا */
-  const nameEl=document.getElementById('cName');
-  const bodyEl=document.getElementById('cBody');
-  const sendEl=document.getElementById('cSend');
-  const msgEl=document.getElementById('cMsg');
-  if(!bodyEl||!sendEl||!msgEl) return;
+  const scriptURL = 'https://script.google.com/macros/s/AKfycbxw4dy1IfjRFskDVb_GNBB1wAHLrYApn1uEZiYSgpVIRxdXT4uMiUAHOmm_VqXdH7_1BA/exec';
+  const form = document.getElementById('commentForm');
+  const msgEl = document.getElementById('cMsg');
+  const sendEl = document.getElementById('cSend');
+  const card = form ? form.parentElement : null;
+  if(!form||!msgEl) return;
 
   function setMsg(text,ok){
     msgEl.textContent=text;
     msgEl.hidden=false;
     msgEl.className='cmsg '+(ok?'ok':'err');
   }
-  function send(){
-    const b=bodyEl.value.trim();
-    if(!b){ setMsg('اكتب تعليقك أولاً قبل النشر.',''); return; }
-    sendEl.disabled=true;
-    const payload={ name:(nameEl.value.trim().slice(0,40))||'زائر', message:b, page:location.pathname };
-    const p=APP_URL.indexOf('?????')>-1
-      ? Promise.reject('NO_URL')
-      : fetch(APP_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-    p.then(function(){
-      bodyEl.value='';
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    const payload = {
+      name: document.getElementById('name').value,
+      comment: document.getElementById('comment').value
+    };
+    form.classList.add('sending');
+    if(card) card.classList.add('sending');
+    if(sendEl){ sendEl.disabled=true; sendEl.classList.add('sending'); }
+    setMsg('جارٍ إرسال تعليقك…','');
+    fetch(scriptURL,{method:'POST',body:JSON.stringify(payload)})
+      .then(function(r){ return r.json(); })
+      .then(function(){})
+      .catch(function(err){ console.error('تعذر إرسال التعليق في الخلفية:',err); });
+    setTimeout(function(){
+      form.classList.remove('sending');
+      if(card) card.classList.remove('sending');
+      if(sendEl){ sendEl.disabled=false; sendEl.classList.remove('sending'); }
+      form.reset();
       setMsg('تم إرسال تعليقك بنجاح ✅ شكراً لك، سيطلع عليه فريق التقرير.',true);
-    }).catch(function(){
-      setMsg('تعذر الإرسال حالياً — تأكد من ربط صفحة Google Sheets في إعدادات الصفحة، أو حاول لاحقاً.',false);
-    }).finally(function(){
-      sendEl.disabled=false;
-    });
-  }
-  sendEl.addEventListener('click',send);
-  bodyEl.addEventListener('keydown',function(e){
-    if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); send(); }
+    },1000);
   });
 })();
 </script>
